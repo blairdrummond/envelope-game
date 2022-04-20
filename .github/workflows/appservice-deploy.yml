@@ -1,0 +1,8 @@
+name: App Service Deploy
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, caf, prod]
