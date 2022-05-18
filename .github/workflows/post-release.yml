@@ -13,48 +13,52 @@ env:
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
 jobs:
-  docker:
-    name: Docker Build & Push
+  get-tag:
+    name: Get Tag
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
-
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-
       - name: Get Tag
         id: tag
         run: echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+  build-scan-push:
+    name: Build, Scan, and Push
+    needs: get-tag
+    uses: blairdrummond/github-workflows/build/build-scan-push/build-scan-push.yaml@main
+    with:
+      image_name: ${{ env.IMAGE_NAME }}
+      image_tag: ${{ needs.get-tag.outputs.tag }}
+      registry_url: ghcr.io
+      registry_username: ${{ secrets.CR_USER }}
+    secrets:
+      registry_password: ${{ secrets.CR_PAT }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.CR_USER }}
-          password: ${{ secrets.CR_PAT }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:latest,${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+  retag-latest:
+    runs-on: ubuntu-latest
+    needs:
+    - get-tag
+    - build-scan-push
+    steps:
+      - uses: imjasonh/setup-crane@v0.1
+      - run: |
+          echo "${registry_password}" | crane auth login https://${registry_url} --username ${registry_url} --password-stdin
+          crane tag ${{ env.IMAGE_NAME }}:${{ needs.get-tag.outputs.tag }} latest
+        env:
+          registry_url: ghcr.io
+          registry_username: ${{ secrets.CR_USER }}
+          registry_password: ${{ secrets.CR_PAT }}
 
   helm:
-
-    needs: docker
-
+    needs: build-scan-push
     name: Helm Deploy Dev
     runs-on: [self-hosted, caf, prod]
     environment: envelope-game-dev
-
     steps:
       - name: AZ Login
         env:
