@@ -32,6 +32,7 @@ jobs:
     needs: get-tag
     uses: blairdrummond/github-workflows/build/build-scan-push/build-scan-push.yaml@main
     with:
+      push: true
       image_name: ${{ env.IMAGE_NAME }}
       image_tag: ${{ needs.get-tag.outputs.tag }}
       registry_url: ghcr.io
