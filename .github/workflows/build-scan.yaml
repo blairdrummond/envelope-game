@@ -7,10 +7,11 @@ env:
 
 jobs:
   get-tag:
-    name: Get Tag
+    name: Get Image and Tag
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      image-name: ${{ steps.tag.outputs.image-name }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -19,12 +20,17 @@ jobs:
       - name: Get Tag
         id: tag
         run: echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
+      # We can't just use the env var as a workflow input because of
+      # weirdness with the scope of `env.`
+      - name: Get Image from env var
+        id: image-name
+        run: echo ::set-output image-name=image-name::${IMAGE_NAME}
 
   build-scan-push:
     name: Build, Scan, and Push
     needs: get-tag
-    uses: blairdrummond/github-workflows/build/build-scan-push/build-scan-push.yaml@main
+    uses: blairdrummond/github-workflows/.github/workflows/build-scan-push.yaml@main
     with:
       push: false
-      image_name: ${{ env.IMAGE_NAME }}
+      image_name: ${{ needs.get-tag.outputs.image-name }}
       image_tag: ${{ needs.get-tag.outputs.tag }}
